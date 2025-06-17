@@ -1,6 +1,8 @@
 #!/bin/bash
 
-GITHUB_PROXY="https://gitclone.com"
+GITHUB_PROXY="https://ghfast.top"
+
+# sudo git config url."${GITHUB_PROXY}/https://github.com/".insteadOf "https://github.com/"
 
 function ask_user() {
     read -p "$1 (y/n): " choice
@@ -71,11 +73,11 @@ if [ -d "azerothcore-wotlk" ]; then
     cd azerothcore-wotlk
 else
     if ask_user "Download and install AzerothCore Playerbots?"; then
-        git clone $GITHUB_PROXY/github.com/liyunfan1223/azerothcore-wotlk.git --branch=Playerbot
+        git clone https://github.com/liyunfan1223/azerothcore-wotlk.git --branch=Playerbot
         cp src/.env azerothcore-wotlk/
         cp src/*.yml azerothcore-wotlk/
         cd azerothcore-wotlk/modules
-        git clone $GITHUB_PROXY/github.com/liyunfan1223/mod-playerbots.git --branch=master
+        git clone https://github.com/liyunfan1223/mod-playerbots.git --branch=master
         cd ..
     else
         echo "Aborting..."
@@ -88,32 +90,36 @@ if ask_user "Install modules?"; then
     cd modules
 
     function install_mod() {
-        local mod_name=$1
-        local repo_url=$2
+        local repo_url=$1
+        local mod_name=$(basename -s .git $repo_url)
 
         if [ -d "${mod_name}" ]; then
             echo "${mod_name} exists. Skipping..."
         else
             if ask_user "Install ${mod_name}?"; then
-                git clone "${$GITHUB_PROXY/repo_url}"
+                git clone ${repo_url}
             fi
         fi
     }
 
-    install_mod "mod-aoe-loot" "github.com/azerothcore/mod-aoe-loot.git"
-    install_mod "mod-learnspells" "github.com/noisiver/mod-learnspells.git"
-    install_mod "mod-fireworks-on-level" "github.com/azerothcore/mod-fireworks-on-level.git"
-    install_mod "mod-individual-progression" "github.com/ZhengPeiRu21/mod-individual-progression.git"
+    install_mod "https://github.com/azerothcore/mod-aoe-loot.git"
+    install_mod "https://github.com/noisiver/mod-learnspells.git"
+    install_mod "https://github.com/azerothcore/mod-fireworks-on-level.git"
+    install_mod "https://github.com/ZhengPeiRu21/mod-individual-progression.git"
 
     cd ..
 
 fi
 
+# copy and replace
+mirror_cmd="sed -i 's\/archive.ubuntu.com\/mirrors.tuna.tsinghua.edu.cn\/g' \/etc\/apt\/sources.list \&\& apt-get update"
+sed -i "s/apt-get update/${mirror_cmd}/g" apps/docker/Dockerfile
+
 
 docker compose up -d --build
 
 # CRITICAL FIX: Fix permissions AFTER Docker build completes
-echo "Fixing permissions for Unraid compatibility..."
+echo "Fixing permissions ..."
 mkdir -p env/dist/etc env/dist/logs ../wotlk
 sudo chown -R 1000:1000 env/dist/etc env/dist/logs 2>/dev/null || chown -R 1000:1000 env/dist/etc env/dist/logs
 sudo chown -R 1000:1000 ../wotlk 2>/dev/null || chown -R 1000:1000 ../wotlk
