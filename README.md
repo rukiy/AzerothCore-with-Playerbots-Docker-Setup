@@ -28,7 +28,7 @@ Reference:
 1.
 > Be sure to set correct timezone on your debian before you start.
  ```bash
- git clone https://github.com/coc0nut/AzerothCore-with-Playerbots-Docker-Setup.git \
+ git clone https://github.com/rukiy/AzerothCore-with-Playerbots-Docker-Setup.git \
  && cd AzerothCore-with-Playerbots-Docker-Setup && chmod +x *.sh && ./setup.sh
  ```
 
