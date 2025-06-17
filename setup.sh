@@ -1,8 +1,8 @@
 #!/bin/bash
 
-GITHUB_PROXY="https://ghfast.top"
+GITHUB_PROXY="https://githubfast.com"
 
-# sudo git config url."${GITHUB_PROXY}/https://github.com/".insteadOf "https://github.com/"
+sudo git config url."${GITHUB_PROXY}/".insteadOf "https://github.com/"
 
 function ask_user() {
     read -p "$1 (y/n): " choice
@@ -112,7 +112,7 @@ if ask_user "Install modules?"; then
 fi
 
 # copy and replace
-mirror_cmd="sed -i 's\/archive.ubuntu.com\/mirrors.tuna.tsinghua.edu.cn\/g' \/etc\/apt\/sources.list \&\& apt-get update"
+mirror_cmd="sed -i 's\/archive.ubuntu.com\/mirrors.tuna.tsinghua.edu.cn\/g' \/etc\/apt\/sources.list \&\& sed -i 's\/security.ubuntu.com\/mirrors.tuna.tsinghua.edu.cn\/g' \/etc\/apt\/sources.list \&\& apt-get update"
 sed -i "s/apt-get update/${mirror_cmd}/g" apps/docker/Dockerfile
 
 
@@ -125,12 +125,13 @@ sudo chown -R 1000:1000 env/dist/etc env/dist/logs 2>/dev/null || chown -R 1000:
 sudo chown -R 1000:1000 ../wotlk 2>/dev/null || chown -R 1000:1000 ../wotlk
 sudo chown -R 1000:1000 . 2>/dev/null || chown -R 1000:1000 .
 
+
 # Wait a moment for containers to initialize
 sleep 5
 
 # Restart ac-db-import to apply permission fixes
 echo "Restarting ac-db-import with correct permissions..."
-docker-compose restart ac-db-import
+docker compose restart ac-db-import
 
 # Wait for database to be ready
 echo "Waiting for database to be ready..."
@@ -179,15 +180,13 @@ function execute_sql() {
             else
                 cp "$custom_sql_file" "$temp_sql_file"
             fi
-            # Use Docker exec instead of local mysql command for Unraid compatibility
-            docker exec ac-database mysql -u root -ppassword "$db_name" < "$temp_sql_file" 2>/dev/null || \
-            mysql -h "$ip_address" -P 3307 -uroot -ppassword "$db_name" < "$temp_sql_file" 2>/dev/null || \
-            echo "Note: Could not execute SQL file $custom_sql_file (MySQL client not available)"
+            mysql -h "$ip_address" -uroot -ppassword "$db_name" < "$temp_sql_file"
         done
     else
         echo "No SQL files found in $custom_sql_dir/$db_name, skipping..."
     fi
 }
+
 
 # Run custom SQL files
 echo "Running custom SQL files..."
