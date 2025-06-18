@@ -113,11 +113,9 @@ if ask_user "Install modules?"; then
 fi
 
 # copy and replace
-sed -i "s/source: ac-database/source: \${DOCKER_VOL_DATABASE:-ac-database}/g" docker-compose.ymly
-
-
-mirror_cmd="sed -i 's\/archive.ubuntu.com\/mirrors.tuna.tsinghua.edu.cn\/g' \/etc\/apt\/sources.list \&\& sed -i 's\/security.ubuntu.com\/mirrors.tuna.tsinghua.edu.cn\/g' \/etc\/apt\/sources.list \&\& apt-get update"
-sed -i "s/apt-get update/${mirror_cmd}/g" apps/docker/Dockerfile
+# sed -i "s/source: ac-database/source: \${DOCKER_VOL_DATABASE:-ac-database}/g" docker-compose.yml
+mirror_cmd="RUN sed -i 's\/archive.ubuntu.com\/mirrors.tuna.tsinghua.edu.cn\/g' \/etc\/apt\/sources.list \&\& sed -i 's\/security.ubuntu.com\/mirrors.tuna.tsinghua.edu.cn\/g' \/etc\/apt\/sources.list \&\& apt-get update"
+sed -i "s/RUN apt-get update/${mirror_cmd}/g" apps/docker/Dockerfile
 
 
 
@@ -137,7 +135,7 @@ sleep 5
 
 # Restart ac-db-import to apply permission fixes
 echo "Restarting ac-db-import with correct permissions..."
-sudo chown -R 1000:1000 wotlk
+sudo chown -R 1000:1000 ../wotlk
 docker compose restart ac-db-import
 
 # Wait for database to be ready
@@ -146,12 +144,14 @@ sleep 15
 
 # Automatically detect and update realmlist
 echo "Configuring realmlist with host IP..."
-DETECTED_IP=$(hostname -I | awk '{print $1}')
-echo "Detected IP: $DETECTED_IP"
+# DETECTED_IP=$(hostname -I | awk '{print $1}')
+# ip_address=$(hostname -I | awk '{print $1}')
+ip_address=127.0.0.1
+echo "Detected IP: $ip_address"
 
 # Update realmlist database
-docker exec ac-database mysql -u root -ppassword acore_auth -e "UPDATE realmlist SET address = '$DETECTED_IP' WHERE id = 1;" 2>/dev/null && \
-echo "SUCCESS: Realmlist configured successfully for IP: $DETECTED_IP" || \
+docker exec ac-database mysql -u root -ppassword acore_auth -e "UPDATE realmlist SET address = '$ip_address' WHERE id = 1;" 2>/dev/null && \
+echo "SUCCESS: Realmlist configured successfully for IP: $ip_address" || \
 echo "WARNING: Realmlist update will be attempted again after worldserver starts"
 
 # Verify the update
@@ -172,9 +172,6 @@ chars="acore_characters"
 mkdir -p "$custom_sql_dir/$auth"
 mkdir -p "$custom_sql_dir/$world"
 mkdir -p "$custom_sql_dir/$chars"
-
-
-ip_address=$(hostname -I | awk '{print $1}')
 
 # Temporary SQL file
 temp_sql_file="/tmp/temp_custom_sql.sql"
