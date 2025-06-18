@@ -1,8 +1,8 @@
 #!/bin/bash
 
-GITHUB_PROXY="https://githubfast.com"
+# GITHUB_PROXY="https://githubfast.com"
 
-sudo git config url."${GITHUB_PROXY}/".insteadOf "https://github.com/"
+# sudo git config url."${GITHUB_PROXY}/".insteadOf "https://github.com/"
 
 function ask_user() {
     read -p "$1 (y/n): " choice
@@ -14,7 +14,8 @@ function ask_user() {
 
 sed -i "s|^TZ=.*$|TZ=$(cat /etc/timezone)|" src/.env 2>/dev/null || true
 
-sudo apt update 2>/dev/null || true
+sudo apt-get update 2>/dev/null || true
+sudo apt-get upgrade -y 2>/dev/null || true
 
 # Check if MySQL client is installed
 if ! command -v mysql &> /dev/null
@@ -112,8 +113,13 @@ if ask_user "Install modules?"; then
 fi
 
 # copy and replace
+sed -i "s/source: ac-database/source: \${DOCKER_VOL_DATABASE:-ac-database}/g" docker-compose.ymly
+
+
 mirror_cmd="sed -i 's\/archive.ubuntu.com\/mirrors.tuna.tsinghua.edu.cn\/g' \/etc\/apt\/sources.list \&\& sed -i 's\/security.ubuntu.com\/mirrors.tuna.tsinghua.edu.cn\/g' \/etc\/apt\/sources.list \&\& apt-get update"
 sed -i "s/apt-get update/${mirror_cmd}/g" apps/docker/Dockerfile
+
+
 
 
 docker compose up -d --build
@@ -131,6 +137,7 @@ sleep 5
 
 # Restart ac-db-import to apply permission fixes
 echo "Restarting ac-db-import with correct permissions..."
+sudo chown -R 1000:1000 wotlk
 docker compose restart ac-db-import
 
 # Wait for database to be ready
@@ -153,13 +160,19 @@ docker exec ac-database mysql -u root -ppassword acore_auth -e "SELECT id, name,
 
 cd ..
 
-sudo chown -R 1000:1000 wotlk 2>/dev/null || chown -R 1000:1000 wotlk
+sudo chown -R 1000:1000 wotlk 2>/dev/null
+sudo chown -R 1000:1000 wotlk
 
 # Directory for custom SQL files
 custom_sql_dir="src/sql"
 auth="acore_auth"
 world="acore_world"
 chars="acore_characters"
+
+mkdir -p "$custom_sql_dir/$auth"
+mkdir -p "$custom_sql_dir/$world"
+mkdir -p "$custom_sql_dir/$chars"
+
 
 ip_address=$(hostname -I | awk '{print $1}')
 
@@ -202,6 +215,8 @@ echo "SUCCESS: Final realmlist configuration complete for IP: $ip_address"
 # Clean up temporary file
 rm -f "$temp_sql_file"
 
+echo ""
+echo "!!! If ac-db-import failed, run 'sudo chown -R 1000:1000 wotlk' and './setup.sh' again !!!"
 echo ""
 echo "INSTALLATION COMPLETED SUCCESSFULLY!"
 echo ""
