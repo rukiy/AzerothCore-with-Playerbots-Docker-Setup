@@ -16,13 +16,13 @@ echo "IP Address: $ip_address"
 sudo sed -i "s|^TZ=.*$|TZ=$(cat /etc/timezone)|" src/.env 2>/dev/null || true
 
 # Check if MySQL client is installed
-if ! command -v mysql &> /dev/null
-then
-    echo "MySQL client is not installed. Installing mariadb-client now..."
-    sudo apt install -y mariadb-client 2>/dev/null || echo "Note: MySQL client installation skipped (not available on this system)"
-else
-    echo "MySQL client is already installed."
-fi
+# if ! command -v mysql &> /dev/null
+# then
+#     echo "MySQL client is not installed. Installing mariadb-client now..."
+#     sudo apt install -y mariadb-client 2>/dev/null || echo "Note: MySQL client installation skipped (not available on this system)"
+# else
+#     echo "MySQL client is already installed."
+# fi
 
 # Check if Docker is installed
 if ! command -v docker &> /dev/null
@@ -125,17 +125,19 @@ echo "Set database volume..."
 sed -i "s#type: volume#type: bind#g" docker-compose.yml
 sed -i "s#source: ac-database#source: \${DOCKER_VOL_DB:-ac-database}#g" docker-compose.yml
 # set mirror
-# ubuntu
+## ubuntu
 echo "Set ubuntu mirror..."
 mirror_cmd="RUN sed -i 's\/archive.ubuntu.com\/${UBUNTU_MIRROR}\/g' \/etc\/apt\/sources.list \&\& sed -i 's\/security.ubuntu.com\/${UBUNTU_MIRROR}\/g' \/etc\/apt\/sources.list \&\& apt-get update"
 sed -i "s#RUN apt-get update#${mirror_cmd}#g" apps/docker/Dockerfile
-# github 
+## github 
 echo "Set github mirror..."
 sed -i "s#\"https://api.github#\"${GITHUB_MIRROR}https://api.github#g" apps/installer/includes/functions.sh
 sed -i "s#\"https://raw.githubusercontent#\"${GITHUB_MIRROR}https://raw.githubusercontent#g" apps/installer/includes/functions.sh
 sed -i "s#\"https://github.com#\"${GITHUB_MIRROR}https://github.com#g" apps/installer/includes/functions.sh
 sed -i "s#curl -L https://github.com#curl -L ${GITHUB_MIRROR}https://github.com#g" apps/installer/includes/functions.sh
 
+
+# Fixing permissions
 echo "Fixing permissions ..."
 mkdir -p env/dist/etc env/dist/logs ../wotlk/etc ../wotlk/logs ../wotlk/database
 sudo chown -R 1000:1000 env/dist/etc env/dist/logs 2>/dev/null || chown -R 1000:1000 env/dist/etc env/dist/logs
@@ -153,6 +155,8 @@ mkdir -p "$custom_sql_dir/$auth"
 mkdir -p "$custom_sql_dir/$world"
 mkdir -p "$custom_sql_dir/$chars"
 
+
+# build
 docker compose up -d --build
 
 # Wait a moment for containers to initialize
@@ -167,7 +171,6 @@ echo "WARNING: Realmlist update will be attempted again after worldserver starts
 # Verify the update
 echo "Current realmlist configuration:"
 docker exec ac-database mysql -u root -ppassword acore_auth -e "SELECT id, name, address FROM realmlist;" 2>/dev/null || true
-
 cd ..
 
 # Temporary SQL file
