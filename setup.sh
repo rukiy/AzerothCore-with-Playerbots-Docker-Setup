@@ -1,21 +1,19 @@
 #!/bin/bash
 
-# GITHUB_PROXY="https://githubfast.com"
+UBUNTU_MIRROR="mirrors.tuna.tsinghua.edu.cn"
+GITHUB_MIRROR="https://githubfast.com/"
+DETECTED_IP=311802.xyz
 
-# sudo git config url."${GITHUB_PROXY}/".insteadOf "https://github.com/"
+ip_address=$(hostname -I | awk '{print $1}')
+if test -z "$DETECTED_IP" 
+then
+  echo "Detected IP: $DETECTED_IP"
+else
+  ip_address=$DETECTED_IP
+fi
+echo "IP Address: $ip_address"
 
-function ask_user() {
-    read -p "$1 (y/n): " choice
-    case "$choice" in
-        y|Y ) return 0;;
-        * ) return 1;;
-    esac
-}
-
-sed -i "s|^TZ=.*$|TZ=$(cat /etc/timezone)|" src/.env 2>/dev/null || true
-
-sudo apt-get update 2>/dev/null || true
-sudo apt-get upgrade -y 2>/dev/null || true
+sudo sed -i "s|^TZ=.*$|TZ=$(cat /etc/timezone)|" src/.env 2>/dev/null || true
 
 # Check if MySQL client is installed
 if ! command -v mysql &> /dev/null
@@ -73,95 +71,77 @@ if [ -d "azerothcore-wotlk" ]; then
     cp src/*.yml azerothcore-wotlk/
     cd azerothcore-wotlk
 else
-    if ask_user "Download and install AzerothCore Playerbots?"; then
-        git clone https://github.com/liyunfan1223/azerothcore-wotlk.git --branch=Playerbot
-        cp src/.env azerothcore-wotlk/
-        cp src/*.yml azerothcore-wotlk/
-        cd azerothcore-wotlk/modules
-        git clone https://github.com/liyunfan1223/mod-playerbots.git --branch=master
-        cd ..
-    else
-        echo "Aborting..."
-        exit 1
-    fi
-fi
-
-if ask_user "Install modules?"; then
-
-    cd modules
-
-    function install_mod() {
-        local repo_url=$1
-        local mod_name=$(basename -s .git $repo_url)
-
-        if [ -d "${mod_name}" ]; then
-            echo "${mod_name} exists. Skipping..."
-        else
-            if ask_user "Install ${mod_name}?"; then
-                git clone ${repo_url}
-            fi
-        fi
-    }
-
-    install_mod "https://github.com/azerothcore/mod-aoe-loot.git"
-    install_mod "https://github.com/noisiver/mod-learnspells.git"
-    install_mod "https://github.com/azerothcore/mod-fireworks-on-level.git"
-    install_mod "https://github.com/ZhengPeiRu21/mod-individual-progression.git"
-
+    git clone https://github.com/liyunfan1223/azerothcore-wotlk.git --branch=Playerbot
+    cp src/.env azerothcore-wotlk/
+    cp src/*.yml azerothcore-wotlk/
+    cd azerothcore-wotlk/modules
+    git clone https://github.com/liyunfan1223/mod-playerbots.git --branch=master
     cd ..
-
 fi
 
-# copy and replace
-# sed -i "s/source: ac-database/source: \${DOCKER_VOL_DATABASE:-ac-database}/g" docker-compose.yml
-mirror_cmd="RUN sed -i 's\/archive.ubuntu.com\/mirrors.tuna.tsinghua.edu.cn\/g' \/etc\/apt\/sources.list \&\& sed -i 's\/security.ubuntu.com\/mirrors.tuna.tsinghua.edu.cn\/g' \/etc\/apt\/sources.list \&\& apt-get update"
-sed -i "s/RUN apt-get update/${mirror_cmd}/g" apps/docker/Dockerfile
 
+# Install modules
+echo "Install modules..."
+##################################################################
+cd modules
+function install_mod() {
+    local repo_url=$1
+    local mod_name=$(basename -s .git $repo_url)
 
+    if [ -d "${mod_name}" ]; then
+        echo "${mod_name} exists. Skipping..."
+    else
+        git clone ${repo_url}
+    fi
+}
+install_mod "https://github.com/azerothcore/mod-aoe-loot.git"
+# fix modules sql folder
+echo "Fixing mod-aoe-loot modules sql folder..."
+mv mod-aoe-loot/data/sql/db-auth mod-aoe-loot/data/sql/auth 2>/dev/null || :
+mv mod-aoe-loot/data/sql/db-characters mod-aoe-loot/data/sql/characters 2>/dev/null || :
+mv mod-aoe-loot/data/sql/db-world mod-aoe-loot/data/sql/world 2>/dev/null || :
+# fix modules sql folder
+# install_mod "https://github.com/ZhengPeiRu21/mod-individual-progression.git"
+# echo "Fixing mod-individual-progression modules sql folder..."
+# mkdir -p mod-individual-progression/data/sql
+# mv mod-individual-progression/sql/* mod-individual-progression/data/sql 2>/dev/null || :
 
+install_mod "https://github.com/noisiver/mod-learnspells.git"
+install_mod "https://github.com/azerothcore/mod-fireworks-on-level.git"
+install_mod "https://github.com/DustinHendrickson/mod-player-bot-level-brackets.git"
+install_mod "https://github.com/azerothcore/mod-eluna.git"
+install_mod "https://github.com/azerothcore/mod-autobalance.git"
+install_mod "https://github.com/azerothcore/mod-transmog.git"
+echo "Fixing mod-transmog modules sql folder..."
+mv mod-transmog/data/sql/db-auth mod-aoe-loot/data/sql/auth 2>/dev/null || :
+mv mod-transmog/data/sql/db-characters mod-aoe-loot/data/sql/characters 2>/dev/null || :
+mv mod-transmog/data/sql/db-world mod-aoe-loot/data/sql/world 2>/dev/null || :
 
-docker compose up -d --build
+cd ..
+##################################################################
 
-# CRITICAL FIX: Fix permissions AFTER Docker build completes
+# set database volume
+echo "Set database volume..."
+sed -i "s#type: volume#type: bind#g" docker-compose.yml
+sed -i "s#source: ac-database#source: \${DOCKER_VOL_DB:-ac-database}#g" docker-compose.yml
+# set mirror
+# ubuntu
+echo "Set ubuntu mirror..."
+mirror_cmd="RUN sed -i 's\/archive.ubuntu.com\/${UBUNTU_MIRROR}\/g' \/etc\/apt\/sources.list \&\& sed -i 's\/security.ubuntu.com\/${UBUNTU_MIRROR}\/g' \/etc\/apt\/sources.list \&\& apt-get update"
+sed -i "s#RUN apt-get update#${mirror_cmd}#g" apps/docker/Dockerfile
+# github 
+echo "Set github mirror..."
+sed -i "s#\"https://api.github#\"${GITHUB_MIRROR}https://api.github#g" apps/installer/includes/functions.sh
+sed -i "s#\"https://raw.githubusercontent#\"${GITHUB_MIRROR}https://raw.githubusercontent#g" apps/installer/includes/functions.sh
+sed -i "s#\"https://github.com#\"${GITHUB_MIRROR}https://github.com#g" apps/installer/includes/functions.sh
+sed -i "s#curl -L https://github.com#curl -L ${GITHUB_MIRROR}https://github.com#g" apps/installer/includes/functions.sh
+
 echo "Fixing permissions ..."
-mkdir -p env/dist/etc env/dist/logs ../wotlk
+mkdir -p env/dist/etc env/dist/logs ../wotlk/etc ../wotlk/logs ../wotlk/database
 sudo chown -R 1000:1000 env/dist/etc env/dist/logs 2>/dev/null || chown -R 1000:1000 env/dist/etc env/dist/logs
 sudo chown -R 1000:1000 ../wotlk 2>/dev/null || chown -R 1000:1000 ../wotlk
 sudo chown -R 1000:1000 . 2>/dev/null || chown -R 1000:1000 .
-
-
-# Wait a moment for containers to initialize
-sleep 5
-
-# Restart ac-db-import to apply permission fixes
-echo "Restarting ac-db-import with correct permissions..."
-sudo chown -R 1000:1000 ../wotlk
-docker compose restart ac-db-import
-
-# Wait for database to be ready
-echo "Waiting for database to be ready..."
-sleep 15
-
-# Automatically detect and update realmlist
-echo "Configuring realmlist with host IP..."
-# DETECTED_IP=$(hostname -I | awk '{print $1}')
-# ip_address=$(hostname -I | awk '{print $1}')
-ip_address=127.0.0.1
-echo "Detected IP: $ip_address"
-
-# Update realmlist database
-docker exec ac-database mysql -u root -ppassword acore_auth -e "UPDATE realmlist SET address = '$ip_address' WHERE id = 1;" 2>/dev/null && \
-echo "SUCCESS: Realmlist configured successfully for IP: $ip_address" || \
-echo "WARNING: Realmlist update will be attempted again after worldserver starts"
-
-# Verify the update
-echo "Current realmlist configuration:"
-docker exec ac-database mysql -u root -ppassword acore_auth -e "SELECT id, name, address FROM realmlist;" 2>/dev/null || true
-
-cd ..
-
-sudo chown -R 1000:1000 wotlk 2>/dev/null
-sudo chown -R 1000:1000 wotlk
+sudo chown -R 775 ../wotlk/database 2>/dev/null || chown -R 775 ../wotlk/database
 
 # Directory for custom SQL files
 custom_sql_dir="src/sql"
@@ -172,6 +152,23 @@ chars="acore_characters"
 mkdir -p "$custom_sql_dir/$auth"
 mkdir -p "$custom_sql_dir/$world"
 mkdir -p "$custom_sql_dir/$chars"
+
+docker compose up -d --build
+
+# Wait a moment for containers to initialize
+sleep 5
+
+# Automatically detect and update realmlist
+echo "Configuring realmlist with host IP..."
+# Update realmlist database
+docker exec ac-database mysql -u root -ppassword acore_auth -e "UPDATE realmlist SET address = '$ip_address' WHERE id = 1;" 2>/dev/null && \
+echo "SUCCESS: Realmlist configured successfully for IP: $ip_address" || \
+echo "WARNING: Realmlist update will be attempted again after worldserver starts"
+# Verify the update
+echo "Current realmlist configuration:"
+docker exec ac-database mysql -u root -ppassword acore_auth -e "SELECT id, name, address FROM realmlist;" 2>/dev/null || true
+
+cd ..
 
 # Temporary SQL file
 temp_sql_file="/tmp/temp_custom_sql.sql"
@@ -190,7 +187,10 @@ function execute_sql() {
             else
                 cp "$custom_sql_file" "$temp_sql_file"
             fi
-            mysql -h "$ip_address" -uroot -ppassword "$db_name" < "$temp_sql_file"
+            # Use Docker exec instead of local mysql command for Unraid compatibility
+            docker exec ac-database mysql -u root -ppassword "$db_name" < "$temp_sql_file" 2>/dev/null || \
+            mysql -h "$ip_address" -P 3307 -uroot -ppassword "$db_name" < "$temp_sql_file" 2>/dev/null || \
+            echo "Note: Could not execute SQL file $custom_sql_file (MySQL client not available)"
         done
     else
         echo "No SQL files found in $custom_sql_dir/$db_name, skipping..."
@@ -212,8 +212,6 @@ echo "SUCCESS: Final realmlist configuration complete for IP: $ip_address"
 # Clean up temporary file
 rm -f "$temp_sql_file"
 
-echo ""
-echo "!!! If ac-db-import failed, run 'sudo chown -R 1000:1000 wotlk' and './setup.sh' again !!!"
 echo ""
 echo "INSTALLATION COMPLETED SUCCESSFULLY!"
 echo ""
